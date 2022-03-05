@@ -17,6 +17,8 @@ on:
   push:
     branches:
       - v21.02.1
+    paths:
+      - '.config'
   #schedule:
       #- cron: 0 8 * * 5
   #watch:
@@ -29,8 +31,8 @@ env:
   DIY_P1_SH: pre-feeds.sh
   DIY_P2_SH: pre-configure.sh
   DIY_POST_SH: post-build.sh
-  UPLOAD_FIRMWARE: true
   SSH_ACTIONS: true
+  UPLOAD_FIRMWARE: true
   TZ: Asia/Shanghai
   ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
