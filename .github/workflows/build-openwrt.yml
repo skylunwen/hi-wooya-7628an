@@ -8,25 +8,19 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build OpenWrt_MT7268
+name: SkyMusic
 
 on:
   repository_dispatch:
-  workflow_dispatch:
-    inputs:
-      ssh:
-        description: 'SSH connection to Actions'
-        required: false
-        default: 'true'
   release:
     types: published
   push:
     branches:
       - v21.02.1
-  #schedule:
-      #- cron: 0 8 * * 5
-  #watch:
-      #types: started
+#  schedule:
+#    - cron: 0 8 * * 5
+#  watch:
+#    types: started
 
 env:
   REPO_URL: https://github.com/openwrt/openwrt
@@ -35,8 +29,7 @@ env:
   DIY_P1_SH: pre-feeds.sh
   DIY_P2_SH: pre-configure.sh
   DIY_POST_SH: post-build.sh
-  SSH_ACTIONS: true
-  UPLOAD_FIRMWARE: true  
+  UPLOAD_FIRMWARE: true
   TZ: Asia/Shanghai
   ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
@@ -61,7 +54,6 @@ jobs:
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
-
     - name: Clone source code
       working-directory: /workdir
       run: |
@@ -69,14 +61,62 @@ jobs:
         git clone --depth 1 -b $REPO_BRANCH $REPO_URL openwrt
         cd openwrt && git checkout -b $REPO_BRANCH && cd -
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-
     - name: Load custom feeds
       run: |
+        rm -f ./.config*
+        touch ./.config
+
+        #
+        # 在 cat >> .config <<EOF 到 EOF 之间粘贴你的编译配置, 需注意缩进关系
+        # 例如:
+
+
+        # 编译x86固件:
+        cat >> .config <<EOF
+        CONFIG_TARGET_ramips=y
+        CONFIG_TARGET_ramips_mt7628=y
+        CONFIG_TARGET_ramips_mt7628_WMD-7628N-12816=y
+        EOF
+
+        # 固件压缩:
+        cat >> .config <<EOF
+        CONFIG_BUSYBOX_CUSTOM=y
+        CONFIG_LIBCURL_COOKIES=y
+        CONFIG_LIBCURL_FILE=y
+        CONFIG_LIBCURL_FTP=y
+        CONFIG_LIBCURL_HTTP=y
+        CONFIG_LIBCURL_NO_SMB="!"
+        CONFIG_LIBCURL_POLARSSL=y
+        CONFIG_LIBCURL_PROXY=y
+        CONFIG_PACKAGE_bird1-ipv4=y
+        CONFIG_PACKAGE_bird1-ipv4-uci=y
+        CONFIG_PACKAGE_bird1-ipv6=y
+        CONFIG_PACKAGE_bird1-ipv6-uci=y
+        CONFIG_PACKAGE_kmod-usb-audio=y
+        CONFIG_PACKAGE_libao=y
+        CONFIG_PACKAGE_libavahi-compat-libdnssd=y
+        CONFIG_PACKAGE_libcurl=y
+        CONFIG_PACKAGE_libltdl=y
+        CONFIG_PACKAGE_libmpdclient=y
+        CONFIG_PACKAGE_libpolarssl=y
+        CONFIG_PACKAGE_libupnp=y
+        CONFIG_PACKAGE_libupnpp=y
+        CONFIG_PACKAGE_luci-app-bird1-ipv4=y
+        CONFIG_PACKAGE_luci-app-bird1-ipv6=y
+        CONFIG_PACKAGE_luci-app-shairplay=y
+        CONFIG_PACKAGE_luci-app-shairport=y
+        CONFIG_PACKAGE_luci-app-upnp=y
+        CONFIG_PACKAGE_madplay=y
+        CONFIG_PACKAGE_shairplay=y
+        CONFIG_PACKAGE_shairport=y
+        CONFIG_PACKAGE_upmpdcli=y
+        EOF
+        
+        
         [ ! -e $FEEDS_CONF ] || mv $FEEDS_CONF openwrt/feeds.conf.default
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
-
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
 
@@ -88,14 +128,6 @@ jobs:
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
-        
-    - name: SSH connection to Actions
-      uses: P3TERX/ssh2actions@v1.0.0
-      if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
-      env:
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        
     - name: Download package
       id: package
       run: |
@@ -104,7 +136,6 @@ jobs:
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
-
     - name: Compile OpenWrt
       id: compile
       run: |
@@ -118,7 +149,6 @@ jobs:
         echo "::set-env name=IMBUILDER_NAME::$( basename bin/targets/*/*/openwrt-imagebuilder-* )"
         echo "::set-env name=FIRMWARE_FILENAME::$( basename bin/targets/*/*/*-firmware.tar.xz )"
         echo "::set-env name=TARGET_DIR::$( readlink -f bin/targets/*/* )"
-
     - name: Check space usage
       if: (!cancelled())
       run: df -hT
